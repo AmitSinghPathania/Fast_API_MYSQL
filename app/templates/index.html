@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Enterprise Contacts - Vanilla JS & AJAX</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <h2 class="mb-4"> Emergency Contacts</h2>
+        
+        <div class="card p-4 mb-4 shadow-sm">
+            <h4 id="formTitle">Create Emergency Contact</h4>
+            <hr>
+            <form id="contactForm">
+                <input type="hidden" id="contactId">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">First Name</label>
+                        <input type="text" class="form-control" id="first_name" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Last Name</label>
+                        <input type="text" class="form-control" id="last_name" required>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-control" id="email" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Mobile Number</label>
+                    <input type="text" class="form-control" id="mobile" placeholder="Enter 10 digit number"maxlength="10" pattern="\d{10}" title="Please enter exactly 10 digits" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label d-block">Event Notification</label>
+                    <input type="radio" name="event_notification" value="OrgUsers" checked> All Organizational App Users
+                    <input type="radio" name="event_notification" value="SelectGroups"> Select Notification Groups
+                    <div id="groupInputContainer" class="mt-2" style="display:none;">
+                        <input type="text" class="form-control" id="notification_groups" placeholder="Group-1, Group-2">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label d-block">Event Types</label>
+                    <div class="form-check-inline">
+                        <input type="checkbox" class="event-type" value="SOS"> SOS
+                        <input type="checkbox" class="event-type" value="911"> 911
+                        <input type="checkbox" class="event-type" value="Timer"> Timer
+                        <input type="checkbox" class="event-type" value="Safe Walk"> Safe Walk
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label d-block">Status</label>
+                    <input type="radio" name="is_active" value="true" checked> Active
+                    <input type="radio" name="is_active" value="false"> Inactive
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="submitBtn">SUBMIT</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">CANCEL</button>
+            </form>
+        </div>
+
+    <div class="row mb-3 bg-white p-3 border rounded shadow-sm mx-0">
+            <div class="col-md-6">
+                <input type="number" class="form-control" id="searchId" placeholder="Enter Contact ID to fetch...">
+            </div>
+            <div class="col-md-6 text-end">
+                <button class="btn btn-primary" onclick="getSearchById()">FETCH BY ID</button>
+                <button class="btn btn-secondary" onclick="getContacts()">SHOW ALL</button>
+            </div>
+    </div>
+
+        <table class="table table-striped table-hover bg-white border">
+            <thead class="table-dark">
+                <tr>
+                    <th>Edit</th><th>First Name</th><th>Last Name</th><th>Email</th><th>Mobile</th><th>Event Types</th><th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="contactsBody">
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Toggle Notification Groups Input based on selection
+        $('input[name="event_notification"]').on('change', function() {
+            if ($(this).val() === 'SelectGroups') $('#groupInputContainer').show();
+            else $('#groupInputContainer').hide();
+        });
+
+        // --- Fetch All Data ---
+        function getContacts() {
+            $.ajax({
+                url: '/items',
+                method: 'GET',
+                success: function(data) {
+                    console.log("FINAL DATA",data)
+                    let rows = '';
+                    data.forEach(c => {
+                        rows += `<tr>
+                            <td><button class="btn btn-link p-0" onclick="editContact(${JSON.stringify(c).replace(/"/g, '&quot;')})">Edit</button></td>
+                            <td>${c.first_name}</td><td>${c.last_name}</td><td>${c.email}</td><td>${c.mobile}</td>
+                            <td>${c.event_types}</td>
+                            <td><button class="btn btn-sm btn-danger" onclick="deleteContact(${c.id})">Delete</button></td>
+                        </tr>`;
+                    });
+                    $('#contactsBody').html(rows);
+                }
+            });
+        }
+
+        // --- Save Data ---
+        $('#contactForm').on('submit', function(e) {
+            e.preventDefault();
+            const id = $('#contactId').val();
+            const selectedTypes = $('.event-type:checked').map(function() { return $(this).val(); }).get().join(', ');
+
+            const formData = {
+                first_name: $('#first_name').val(),
+                last_name: $('#last_name').val(),
+                email: $('#email').val(),
+                mobile: $('#mobile').val(),
+                event_notification: $('input[name="event_notification"]:checked').val(),
+                notification_groups: $('#notification_groups').val(),
+                event_types: selectedTypes,
+                is_active: $('input[name="is_active"]:checked').val() === "true"
+            };
+
+            $.ajax({
+                url: id ? `/items/${id}` : '/items',
+                method: id ? 'PUT' : 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(formData), // Manual JSON serialization
+                success: function() {
+                    alert("Operation Successful!");
+                    resetForm();
+                    getContacts(); // Auto-refresh
+                }
+            });
+        });
+
+        // ---DELETE Data ---
+        function deleteContact(id) {
+            if (confirm("Delete this contact?")) {
+                $.ajax({
+                    url: `/items/${id}`,
+                    method: 'DELETE',
+                    success: function() { getContacts(); }
+                });
+            }
+        }
+        // ---Edit Data ---
+        function editContact(c) {
+            $('#formTitle').text('Edit Enterprise Emergency Contact');
+            $('#submitBtn').text('UPDATE');
+            $('#contactId').val(c.id);
+            $('#first_name').val(c.first_name);
+            $('#last_name').val(c.last_name);
+            $('#email').val(c.email);
+            $('#mobile').val(c.mobile);
+            $(`input[name="event_notification"][value="${c.event_notification}"]`).prop('checked', true).trigger('change');
+            $('#notification_groups').val(c.notification_groups);
+            
+            // Set Checkboxes
+            $('.event-type').prop('checked', false);
+            c.event_types.split(', ').forEach(t => {
+                $(`.event-type[value="${t}"]`).prop('checked', true);
+            });
+            window.scrollTo(0,0);
+        }
+
+        function resetForm() {
+            $('#contactForm')[0].reset();
+            $('#contactId').val('');
+            $('#formTitle').text('Create Enterprise Emergency Contact');
+            $('#submitBtn').text('SUBMIT');
+            $('#groupInputContainer').hide();
+        }
+    // ---Search Data ---
+    function getSearchById() {
+            const id = $('#searchId').val();
+            console.log("Contact id",id)
+            if (!id) {
+                alert("Please enter an ID");
+                return;
+            }
+
+            $.ajax({
+                url: '/items/' + id, 
+                method: 'GET',
+                success: function(c) {
+                    
+                    let row = `<tr>
+                        <td><button class="btn btn-link p-0" onclick="editContact(${JSON.stringify(c).replace(/"/g, '&quot;')})">Edit</button></td>
+                        <td>${c.first_name}</td>
+                        <td>${c.last_name}</td>
+                        <td>${c.email}</td>
+                        <td>${c.mobile}</td>
+                        <td>${c.event_types}</td>
+                        <td><button class="btn btn-sm btn-danger" onclick="deleteContact(${c.id})">Delete</button></td>
+                    </tr>`;
+                    
+                    $('#contactsBody').html(row);
+                },
+            });
+        }
+
+        // Load data on page load
+        $(document).ready(getContacts);
+    </script>
+</body>
+</html>
